@@ -9,10 +9,11 @@
 <body>
     <h1>Scan the QR Code</h1>
     <video id="qr-video" width="300" height="200" style="border: 1px solid black;"></video>
+    <canvas id="qr-canvas" style="display: none;"></canvas>
 
     <script>
         const video = document.getElementById("qr-video");
-        const canvasElement = document.createElement("canvas");
+        const canvasElement = document.getElementById("qr-canvas");
         const canvas = canvasElement.getContext("2d");
 
         // Start the video stream from the webcam
@@ -22,6 +23,9 @@
                 video.setAttribute("playsinline", true);
                 video.play();
                 requestAnimationFrame(scanQRCode);
+            })
+            .catch((err) => {
+                console.error("Error accessing the camera:", err);
             });
 
         function scanQRCode() {
@@ -30,24 +34,30 @@
                 canvasElement.width = video.videoWidth;
                 canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
 
-                // Get image data for QR code scanning
+                // Debug log to confirm video feed is working
+                console.log("Video feed captured to canvas");
+
                 const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
                 const code = jsQR(imageData.data, canvasElement.width, canvasElement.height);
 
                 if (code) {
+                    console.log("QR Code Data:", code.data);
+
                     // Extract user_id from the QR code data
                     const userId = extractUserIdFromQR(code.data);
-                    console.log("Scanned User ID:", userId);
+                    if (userId) {
+                        console.log("Extracted User ID:", userId);
 
-                    // Send the user_id to the Flask server
-                    fetch(`/scan_qr/${userId}`, { method: 'GET' })
-                        .then(response => response.text())
-                        .then(data => {
-                            console.log('Server Response:', data);
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                        });
+                        // Send the user_id to the Flask server
+                        fetch(`/scan_qr/${userId}`, { method: 'GET' })
+                            .then(response => response.text())
+                            .then(data => console.log("Server Response:", data))
+                            .catch(error => console.error("Error sending data to server:", error));
+                    } else {
+                        console.error("Failed to extract User ID from QR code data.");
+                    }
+                } else {
+                    console.log("No QR code detected.");
                 }
             }
 
@@ -55,6 +65,7 @@
         }
 
         function extractUserIdFromQR(qrData) {
+            console.log("Raw QR Data:", qrData); // Log raw QR data for debugging
             const userIdPattern = /User ID: (\d+)/; // Regular expression to extract user_id
             const match = qrData.match(userIdPattern);
             return match ? match[1] : null;
